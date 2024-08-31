@@ -39,6 +39,10 @@ dataset_choice = "wsi"
 wsi_class = ["IPMN", "NOT_IPMN"]
 wsi_color = [(255,255,255), (0,0,0)]
 
+# WSI (If you choose 3-class segmentation)
+wsi_class = ["IPMN", "NOT_IPMN", "Other"]
+wsi_color = [(255,255,255), (128,128,128), (0,0,0)]
+
 
 # DATA ROOT
 filepaths = {
@@ -376,8 +380,8 @@ class SegResNet(nn.Module):
 
 
 
-# Initialiser le modèle
-seg_model = SegResNet(num_classes=2)
+# Initialiser le modèle (select 2 or 3 classes)
+seg_model = SegResNet(num_classes=2) # 2 or 3
 
 # Envoyer le modèle sur le device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
