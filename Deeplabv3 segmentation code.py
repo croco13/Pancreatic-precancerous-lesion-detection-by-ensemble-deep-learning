@@ -589,7 +589,7 @@ test_loss, test_iou, test_accuracy, test_f1_score = evaluate_model(seg_model, te
 
 print(f'Test Loss: {test_loss:.4f}, Test IoU: {test_iou:.4f}, Test Accuracy: {test_accuracy:.4f}, Test F1 Score: {test_f1_score:.4f}')
 
-
+# Visualize the images and prediction, manually find the images that your model failed on.
 def visualize_preds(model, dataloader, choice, device):
     iterloader = iter(dataloader)
     if choice >= len(iterloader):
@@ -616,7 +616,6 @@ def visualize_preds(model, dataloader, choice, device):
     return None
 
 
-# Visualize the images and prediction, manually find the images that your model failed on.
 iterloader = iter(test_dataloader)
 N = len(test_dataloader)
 choice = random.choice(list(range(N)))
