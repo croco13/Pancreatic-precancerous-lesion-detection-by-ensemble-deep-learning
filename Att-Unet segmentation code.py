@@ -93,7 +93,7 @@ image_ext = image_exts[dataset_choice]
 mask_ext = mask_exts[dataset_choice]
 
 
-# ******** IMPORTANT HELPER FUNCTIONS FOR THIS LAB ****************
+# ******** IMPORTANT HELPER FUNCTIONS ****************
 
 # Show the contents of your dataset folder
 # It is important to see how your dataset is organized.
