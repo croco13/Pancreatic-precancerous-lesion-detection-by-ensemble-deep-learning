@@ -1,4 +1,4 @@
-
+# Import necessary libraries
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, Subset
@@ -45,7 +45,7 @@ wsi_color = [(255,255,255), (0,0,0)]
 
 
 
-# DATA ROOT
+# DATA ROOT : Set your own directory
 filepaths = {
     'wsi': 'D:/Internship_wemmert/WSI_9',
 
@@ -98,6 +98,7 @@ mask_ext = mask_exts[dataset_choice]
 # Show the contents of your dataset folder
 # It is important to see how your dataset is organized.
 # You can also do this using file explorer
+
 def show_folder_structure(startpath):
     assert os.path.exists(startpath), "File path does not exist!"
     for root, dirs, files in os.walk(startpath):
@@ -122,8 +123,9 @@ def display_image(images, titles):
 
 
 # Convert segmentation mask from RGB to Semantic channel.
-# RGB channel = 3 (reg, green, blue)
+# RGB channel = 3 (red, green, blue)
 # Semantic channel = N, where N = number of classes, one channel per class
+
 def rgb_to_semantic(image, color_mapping):
     image_array = np.array(image)
     repeated_image = np.repeat(image_array[:, :, np.newaxis, :], len(color_mapping), axis=2) # [rgb channels] x number of classes
@@ -346,13 +348,13 @@ display_image(images=[image_1, recovered_rgb_msk],
 
 
 
-# Charger l'architecture Att-UNet (modifier le nombre de classe à 3 si besoin)
+# Load the Att-UNet architecture (modify the number of classes to 3 if needed).
 seg_model = smp.Unet('resnet50', classes=2, activation=None, encoder_weights='imagenet')
 
 # Afficher l'architecture du modèle 
 print(seg_model)
 
-# Envoyer le modèle sur le device
+# Send the model to the device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 seg_model = seg_model.to(device)
 
@@ -365,7 +367,7 @@ seg_model.eval()
 with torch.no_grad():
     pd_mask = seg_model(input_image)
 
-# Déplacer la prédiction sur le CPU
+# Move the prediction to the CPU
 pd_mask_i = pd_mask.cpu()
 
 print("Image shape = {} | GT Mask shape = {} | Pred Mask shape = {}".format(image_i.shape, gt_mask_i.shape, pd_mask_i.shape))
@@ -379,22 +381,22 @@ seg_model = seg_model.to(device)
 seg_model.eval()
 pd_mask = seg_model(input_image)
 
-# Déplacer les masques sur le CPU et les convertir en numpy arrays
+# Move the masks to the CPU and convert them to numpy arrays.
 gt_mask_i = gt_mask_i.cpu()
 pd_mask_i = pd_mask.cpu()
 
-# Prendre la première image du batch pour visualisation
+# Take the first image from the batch for visualization.
 image_1 = image_i[0].permute(1, 2, 0).cpu().numpy()
 
-# Convertir le masque sémantique en un masque RGB
+# Convert the semantic mask to an RGB mask.
 gt_mask_1 = gt_mask_i.argmax(1)[0].numpy()
 pd_mask_1 = pd_mask_i.argmax(1)[0].numpy()
 
-# Afficher les valeurs uniques dans les masques
+# Display the unique values in the masks.
 print("GT Mask unique values:", np.unique(gt_mask_1))
 print("Predicted Mask unique values:", np.unique(pd_mask_1))
 
-# Convertir les masques en RGB
+# Convert the masks to RGB.
 gt_rgb_msk = semantic_to_rgb(gt_mask_1, color_mapping)
 pd_rgb_msk = semantic_to_rgb(pd_mask_1, color_mapping)
 
@@ -410,7 +412,7 @@ plt.show()
 
 
 
-
+#Train the model for one epoch
 def train_model(model, train_loader, criterion, optimizer, device):
     model.train()
     running_loss = 0.0
@@ -432,20 +434,21 @@ def train_model(model, train_loader, criterion, optimizer, device):
 
 
 
-
+#Calculate Intersection over Union (IoU) between predicted masks and target masks.
 def calculate_iou(pred_masks, target_masks):
     intersection = torch.logical_and(pred_masks, target_masks).sum()
     union = torch.logical_or(pred_masks, target_masks).sum()
     iou = (intersection.float() / union.float()).item()
     return iou
 
+#Calculate the accuracy of the predicted masks.
 def calculate_accuracy(pred_masks, target_masks):
     correct = (pred_masks == target_masks).sum().item()
     total_pixels = target_masks.numel()
     accuracy = correct / total_pixels
     return accuracy
 
-
+#Calculate the F1 score between predicted masks and target masks.
 def calculate_f1_score(pred_masks, target_masks):
     TP = ((pred_masks == 1) & (target_masks == 1)).sum().item()
     FP = ((pred_masks == 1) & (target_masks == 0)).sum().item()
@@ -458,6 +461,7 @@ def calculate_f1_score(pred_masks, target_masks):
 
     return f1_score
 
+#Evaluate the model on the validation dataset.
 def evaluate_model(model, val_loader, criterion, device):
     model.eval()
     running_loss = 0.0
@@ -490,13 +494,13 @@ def evaluate_model(model, val_loader, criterion, device):
     avg_f1_score = total_f1_score / num_batches  # Calculer le score F1 moyen
     return epoch_loss, avg_iou, avg_accuracy, avg_f1_score  # Retourner également le score F1 dans les valeurs de retour
 
-# Utilisation dans la boucle d'évaluation
+# Train and evaluate the model over multiple epochs.
 def train_loop(model, train_loader, val_loader, criterion, optimizer, device, num_epochs=20):
     train_losses = []
     val_losses = []
     val_iou = []
     val_accuracy = []
-    val_f1_score = []  # Nouvelle liste pour stocker les scores F1
+    val_f1_score = [] 
 
     for epoch in range(num_epochs):
         start_time = time.time()
@@ -535,17 +539,18 @@ seg_model = seg_model.to(device)
 
 
 
-
-
-# Att-Unet model import (Replace the directory with your own)
+# Define Att-Unet model 
 seg_model = smp.Unet('resnet50', classes=2, activation=None, encoder_weights='imagenet')
 
-# Afficher l'architecture du modèle UNet
+# Display the architecture of the model
 print(seg_model)
 
+# Load the trained model (Replace with your own directory).
+seg_model.load_state_dict(torch.load('D:/Internship_wemmert/models/Att_Unet_2cl.pth', map_location=torch.device('cpu')))
 
 
-# Évaluation sur le jeu de test
+
+# Evaluation on the test set
 test_loss, test_iou, test_accuracy, test_f1_score = evaluate_model(seg_model, test_dataloader, criterion, device)
 
 print(f'Test Loss: {test_loss:.4f}, Test IoU: {test_iou:.4f}, Test Accuracy: {test_accuracy:.4f}, Test F1 Score: {test_f1_score:.4f}')
