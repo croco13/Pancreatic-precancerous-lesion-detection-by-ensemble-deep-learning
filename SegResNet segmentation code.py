@@ -45,7 +45,7 @@ wsi_color = [(255,255,255), (0,0,0)]
 
 
 
-# DATA ROOT
+# # DATA ROOT : Set your own directory (2 or 3 class dataset)
 filepaths = {
     'wsi': 'D:/Internship_wemmert/WSI_9',
 
