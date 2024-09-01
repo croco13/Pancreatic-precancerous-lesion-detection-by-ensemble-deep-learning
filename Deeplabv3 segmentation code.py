@@ -525,7 +525,7 @@ def train_loop(model, train_loader, val_loader, criterion, optimizer, device, nu
               f'Val F1 Score: {f1_score:.4f}, '  
               f'Time: {time.time() - start_time:.2f}s')
 
-    return train_losses, val_losses, val_iou, val_accuracy, val_f1_score  # Retourner également le score F1 dans les valeurs de retour
+    return train_losses, val_losses, val_iou, val_accuracy, val_f1_score  
 
 
 # Define your criterion (loss function) and optimizer
@@ -543,7 +543,7 @@ seg_model = seg_model.to(device)
 
 # Plot training and validation metrics
 #plt.figure(figsize=(16, 5))  
-#plt.subplot(1, 4, 1)  # Ajout d'une sous-figure pour la perte
+#plt.subplot(1, 4, 1)  
 #plt.plot(range(1, num_epochs+1), train_losses, label='Train Loss')
 #plt.plot(range(1, num_epochs+1), val_losses, label='Val Loss')
 #plt.xlabel('Epochs')
