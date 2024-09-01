@@ -536,6 +536,39 @@ seg_model = seg_model.to(device)
 #seg_model.eval()
 #train_losses, val_losses, val_iou, val_accuracy, val_f1_score = train_loop(seg_model, train_dataloader, val_dataloader, criterion, optimizer, device, num_epochs=num_epochs)
 
+# Plot training and validation metrics
+#plt.figure(figsize=(16, 5))  
+#plt.subplot(1, 4, 1)  
+#plt.plot(range(1, num_epochs+1), train_losses, label='Train Loss')
+#plt.plot(range(1, num_epochs+1), val_losses, label='Val Loss')
+#plt.xlabel('Epochs')
+#plt.ylabel('Loss')
+#plt.legend()
+#plt.title('Training and Validation Loss')
+
+#plt.subplot(1, 4, 2) 
+#plt.plot(range(1, num_epochs+1), val_iou, label='Val IoU')
+#plt.xlabel('Epochs')
+#plt.ylabel('IoU')
+#plt.legend()
+#plt.title('Validation IoU')
+
+#plt.subplot(1, 4, 3)  
+#plt.plot(range(1, num_epochs+1), val_accuracy, label='Val Accuracy')
+#plt.xlabel('Epochs')
+#plt.ylabel('Accuracy')
+#plt.legend()
+#plt.title('Validation Accuracy')
+
+#plt.subplot(1, 4, 4)  
+#plt.plot(range(1, num_epochs+1), val_f1_score, label='Val F1 Score')
+#plt.xlabel('Epochs')
+#plt.ylabel('F1 Score')
+#plt.legend()
+#plt.title('Validation F1 Score')
+
+#plt.tight_layout()  
+#plt.show()
 
 
 
