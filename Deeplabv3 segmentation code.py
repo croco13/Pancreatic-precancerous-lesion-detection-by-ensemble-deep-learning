@@ -349,12 +349,11 @@ seg_model = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True, 
 
 
 # Let's see the architecture of the model
-# we look at only the classifier module
 print(seg_model.classifier)
 
 
 # Modify the last layer to have output channel matching your dataset classes (2 or 3 classes)
-classes = list(range(2)) # select 2 or 3
+classes = list(range(2)) 
 myClassifier = nn.Conv2d(in_channels=256, out_channels=len(classes), kernel_size=1)
 
 seg_model.classifier[4] = myClassifier
@@ -506,7 +505,7 @@ def train_loop(model, train_loader, val_loader, criterion, optimizer, device, nu
     val_losses = []
     val_iou = []
     val_accuracy = []
-    val_f1_score = []  # Nouvelle liste pour stocker les scores F1
+    val_f1_score = []  
 
     for epoch in range(num_epochs):
         start_time = time.time()
@@ -516,14 +515,14 @@ def train_loop(model, train_loader, val_loader, criterion, optimizer, device, nu
         val_losses.append(val_loss)
         val_iou.append(iou)
         val_accuracy.append(accuracy)
-        val_f1_score.append(f1_score)  # Ajouter le score F1 à la liste
+        val_f1_score.append(f1_score)  
 
         print(f'Epoch {epoch+1}/{num_epochs}, '
               f'Train Loss: {train_loss:.4f}, '
               f'Val Loss: {val_loss:.4f}, '
               f'Val IoU: {iou:.4f}, '
               f'Val Accuracy: {accuracy:.4f}, '
-              f'Val F1 Score: {f1_score:.4f}, '  # Afficher le score F1
+              f'Val F1 Score: {f1_score:.4f}, '  
               f'Time: {time.time() - start_time:.2f}s')
 
     return train_losses, val_losses, val_iou, val_accuracy, val_f1_score  # Retourner également le score F1 dans les valeurs de retour
@@ -543,7 +542,7 @@ seg_model = seg_model.to(device)
 #train_losses, val_losses, val_iou, val_accuracy, val_f1_score = train_loop(seg_model, train_dataloader, val_dataloader, criterion, optimizer, device, num_epochs=num_epochs)
 
 # Plot training and validation metrics
-#plt.figure(figsize=(16, 5))  # Ajustement de la taille de la figure pour inclure la sous-figure supplémentaire
+#plt.figure(figsize=(16, 5))  
 #plt.subplot(1, 4, 1)  # Ajout d'une sous-figure pour la perte
 #plt.plot(range(1, num_epochs+1), train_losses, label='Train Loss')
 #plt.plot(range(1, num_epochs+1), val_losses, label='Val Loss')
@@ -552,28 +551,28 @@ seg_model = seg_model.to(device)
 #plt.legend()
 #plt.title('Training and Validation Loss')
 
-#plt.subplot(1, 4, 2)  # Ajout d'une sous-figure pour l'indice Jaccard
+#plt.subplot(1, 4, 2) 
 #plt.plot(range(1, num_epochs+1), val_iou, label='Val IoU')
 #plt.xlabel('Epochs')
 #plt.ylabel('IoU')
 #plt.legend()
 #plt.title('Validation IoU')
 
-#plt.subplot(1, 4, 3)  # Ajout d'une sous-figure pour l'accuracy
+#plt.subplot(1, 4, 3)  
 #plt.plot(range(1, num_epochs+1), val_accuracy, label='Val Accuracy')
 #plt.xlabel('Epochs')
 #plt.ylabel('Accuracy')
 #plt.legend()
 #plt.title('Validation Accuracy')
 
-#plt.subplot(1, 4, 4)  # Ajout d'une sous-figure pour le score F1
+#plt.subplot(1, 4, 4)  
 #plt.plot(range(1, num_epochs+1), val_f1_score, label='Val F1 Score')
 #plt.xlabel('Epochs')
 #plt.ylabel('F1 Score')
 #plt.legend()
 #plt.title('Validation F1 Score')
 
-#plt.tight_layout()  # Ajuste automatiquement les positions des sous-figures pour éviter le chevauchement
+#plt.tight_layout()  
 #plt.show()
 
 
