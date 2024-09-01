@@ -39,6 +39,11 @@ dataset_choice = "wsi"
 wsi_class = ["IPMN", "NOT_IPMN"]
 wsi_color = [(255,255,255), (0,0,0)]
 
+# WSI (If you choose 3-class segmentation)
+#wsi_class = ["IPMN", "NOT_IPMN", "Other"]
+#wsi_color = [(255,255,255), (128,128,128), (0,0,0)]
+
+
 
 # DATA ROOT
 filepaths = {
@@ -340,44 +345,12 @@ display_image(images=[image_1, recovered_rgb_msk],
 
 
 
-class SegResNet(nn.Module):
-    def __init__(self, num_classes=21):
-        super(SegResNet, self).__init__()
-        # Charger le modèle ResNet pré-entraîné
-        self.backbone = models.resnet50(pretrained=True)
 
-        # Remplacer la dernière couche fully connected par des couches de segmentation
-        self.classifier = nn.Sequential(
-            nn.Conv2d(2048, 1024, kernel_size=3, padding=1),
-            nn.BatchNorm2d(1024),
-            nn.ReLU(),
-            nn.Conv2d(1024, num_classes, kernel_size=1),
-            nn.Upsample(scale_factor=32, mode='bilinear', align_corners=True)
-        )
+# Charger l'architecture Att-UNet (modifier le nombre de classe à 3 si besoin)
+seg_model = smp.Unet('resnet50', classes=2, activation=None, encoder_weights='imagenet')
 
-    def forward(self, x):
-        # Utiliser ResNet comme feature extractor
-        x = self.backbone.conv1(x)
-        x = self.backbone.bn1(x)
-        x = self.backbone.relu(x)
-        x = self.backbone.maxpool(x)
-
-        x = self.backbone.layer1(x)
-        x = self.backbone.layer2(x)
-        x = self.backbone.layer3(x)
-        x = self.backbone.layer4(x)
-
-        # Appliquer le classifieur de segmentation
-        x = self.classifier(x)
-
-        return x
-
-
-
-
-
-# Initialiser le modèle
-seg_model = SegResNet(num_classes=2)
+# Afficher l'architecture du modèle 
+print(seg_model)
 
 # Envoyer le modèle sur le device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -555,7 +528,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 seg_model = seg_model.to(device)
 
 # Train the model (if you load an already trained model, do not run this code).
-
 #num_epochs = 300
 #seg_model.eval()
 #train_losses, val_losses, val_iou, val_accuracy, val_f1_score = train_loop(seg_model, train_dataloader, val_dataloader, criterion, optimizer, device, num_epochs=num_epochs)
