@@ -1,4 +1,4 @@
-
+# Import necessary libraries
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, Subset
@@ -40,8 +40,9 @@ wsi_class = ["IPMN", "NOT_IPMN"]
 wsi_color = [(255,255,255), (0,0,0)]
 
 # WSI (If you choose 3-class segmentation)
-wsi_class = ["IPMN", "NOT_IPMN", "Other"]
-wsi_color = [(255,255,255), (128,128,128), (0,0,0)]
+#wsi_class = ["IPMN", "NOT_IPMN", "Other"]
+#wsi_color = [(255,255,255), (128,128,128), (0,0,0)]
+
 
 
 # DATA ROOT
@@ -302,7 +303,7 @@ eval_mask_transforms = torchvision.transforms.Compose([
 BATCH_SIZE = 46
 
 
-# build dataset for different data split
+# Build dataset for different data split
 train_dataset = MyDataset(root_dir=filepath, data_split="train", image_dir=image_dir, mask_dir=mask_dir,
                           image_ext=image_ext, mask_ext=mask_ext, image_transforms=train_image_transforms,
                           mask_transforms=train_mask_transforms, color_mapping=color_mapping)
@@ -343,7 +344,7 @@ display_image(images=[image_1, recovered_rgb_msk],
                titles=['Image', 'Target mask'])
 
 
-
+# Define SegResNet model
 class SegResNet(nn.Module):
     def __init__(self, num_classes=21):
         super(SegResNet, self).__init__()
@@ -380,12 +381,15 @@ class SegResNet(nn.Module):
 
 
 
-# Initialiser le modèle (select 2 or 3 classes)
-seg_model = SegResNet(num_classes=2) # 2 or 3
+# Initialize the model (select 2 or 3 classes)
+seg_model = SegResNet(num_classes=2) 
 
-# Envoyer le modèle sur le device
+# Send the model to the device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 seg_model = seg_model.to(device)
+
+# Display the model architecture
+print(seg_model)
 
 # Check one sample
 image_i, gt_mask_i = next(iter(train_dataloader))
@@ -396,7 +400,7 @@ seg_model.eval()
 with torch.no_grad():
     pd_mask = seg_model(input_image)
 
-# Déplacer la prédiction sur le CPU
+# Move the prediction to the CPU
 pd_mask_i = pd_mask.cpu()
 
 print("Image shape = {} | GT Mask shape = {} | Pred Mask shape = {}".format(image_i.shape, gt_mask_i.shape, pd_mask_i.shape))
@@ -410,22 +414,22 @@ seg_model = seg_model.to(device)
 seg_model.eval()
 pd_mask = seg_model(input_image)
 
-# Déplacer les masques sur le CPU et les convertir en numpy arrays
+# Move the masks to the CPU and convert them to numpy arrays.
 gt_mask_i = gt_mask_i.cpu()
 pd_mask_i = pd_mask.cpu()
 
-# Prendre la première image du batch pour visualisation
+# Take the first image from the batch for visualization.
 image_1 = image_i[0].permute(1, 2, 0).cpu().numpy()
 
-# Convertir le masque sémantique en un masque RGB
+# Convert the semantic mask to an RGB mask
 gt_mask_1 = gt_mask_i.argmax(1)[0].numpy()
 pd_mask_1 = pd_mask_i.argmax(1)[0].numpy()
 
-# Afficher les valeurs uniques dans les masques
+# Display the unique values in the masks.
 print("GT Mask unique values:", np.unique(gt_mask_1))
 print("Predicted Mask unique values:", np.unique(pd_mask_1))
 
-# Convertir les masques en RGB
+# Convert the masks to RGB
 gt_rgb_msk = semantic_to_rgb(gt_mask_1, color_mapping)
 pd_rgb_msk = semantic_to_rgb(pd_mask_1, color_mapping)
 
@@ -441,7 +445,7 @@ plt.show()
 
 
 
-
+#Train the model for one epoch
 def train_model(model, train_loader, criterion, optimizer, device):
     model.train()
     running_loss = 0.0
@@ -463,20 +467,21 @@ def train_model(model, train_loader, criterion, optimizer, device):
 
 
 
-
+#Calculate Intersection over Union (IoU) between predicted masks and target masks.
 def calculate_iou(pred_masks, target_masks):
     intersection = torch.logical_and(pred_masks, target_masks).sum()
     union = torch.logical_or(pred_masks, target_masks).sum()
     iou = (intersection.float() / union.float()).item()
     return iou
 
+#Calculate the accuracy of the predicted masks.
 def calculate_accuracy(pred_masks, target_masks):
     correct = (pred_masks == target_masks).sum().item()
     total_pixels = target_masks.numel()
     accuracy = correct / total_pixels
     return accuracy
 
-
+#Calculate the F1 score between predicted masks and target masks.
 def calculate_f1_score(pred_masks, target_masks):
     TP = ((pred_masks == 1) & (target_masks == 1)).sum().item()
     FP = ((pred_masks == 1) & (target_masks == 0)).sum().item()
@@ -489,6 +494,7 @@ def calculate_f1_score(pred_masks, target_masks):
 
     return f1_score
 
+#Evaluate the model on the validation dataset.
 def evaluate_model(model, val_loader, criterion, device):
     model.eval()
     running_loss = 0.0
@@ -521,7 +527,7 @@ def evaluate_model(model, val_loader, criterion, device):
     avg_f1_score = total_f1_score / num_batches  # Calculer le score F1 moyen
     return epoch_loss, avg_iou, avg_accuracy, avg_f1_score  # Retourner également le score F1 dans les valeurs de retour
 
-# Utilisation dans la boucle d'évaluation
+# Train and evaluate the model over multiple epochs.
 def train_loop(model, train_loader, val_loader, criterion, optimizer, device, num_epochs=20):
     train_losses = []
     val_losses = []
@@ -559,22 +565,54 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 seg_model = seg_model.to(device)
 
 # Train the model (if you load an already trained model, do not run this code).
-
 #num_epochs = 300
 #seg_model.eval()
 #train_losses, val_losses, val_iou, val_accuracy, val_f1_score = train_loop(seg_model, train_dataloader, val_dataloader, criterion, optimizer, device, num_epochs=num_epochs)
 
+# Plot training and validation metrics
+#plt.figure(figsize=(16, 5))  
+#plt.subplot(1, 4, 1)  # Ajout d'une sous-figure pour la perte
+#plt.plot(range(1, num_epochs+1), train_losses, label='Train Loss')
+#plt.plot(range(1, num_epochs+1), val_losses, label='Val Loss')
+#plt.xlabel('Epochs')
+#plt.ylabel('Loss')
+#plt.legend()
+#plt.title('Training and Validation Loss')
+
+#plt.subplot(1, 4, 2)  
+#plt.plot(range(1, num_epochs+1), val_iou, label='Val IoU')
+#plt.xlabel('Epochs')
+#plt.ylabel('IoU')
+#plt.legend()
+#plt.title('Validation IoU')
+
+#plt.subplot(1, 4, 3) 
+#plt.plot(range(1, num_epochs+1), val_accuracy, label='Val Accuracy')
+#plt.xlabel('Epochs')
+#plt.ylabel('Accuracy')
+#plt.legend()
+#plt.title('Validation Accuracy')
+
+#plt.subplot(1, 4, 4)  
+#plt.plot(range(1, num_epochs+1), val_f1_score, label='Val F1 Score')
+#plt.xlabel('Epochs')
+#plt.ylabel('F1 Score')
+#plt.legend()
+#plt.title('Validation F1 Score')
+
+#plt.tight_layout()  
+#plt.show()
 
 
 
 
 
-# SegResNet model import (Replace the directory with your own)
-seg_model.load_state_dict(torch.load('D:/Internship_wemmert/models/segmentation_SegResNet_2cl_100epochs.pth', map_location=torch.device('cpu')))
+# Load the trained model (Replace with your own directory).
+seg_model.load_state_dict(torch.load('D:/Internship_wemmert/models/segmentation_SegResNet_2cl.pth', map_location=torch.device('cpu')))
 
 
 
-# Évaluation sur le jeu de test
+# Evaluation on the test set
 test_loss, test_iou, test_accuracy, test_f1_score = evaluate_model(seg_model, test_dataloader, criterion, device)
 
 print(f'Test Loss: {test_loss:.4f}, Test IoU: {test_iou:.4f}, Test Accuracy: {test_accuracy:.4f}, Test F1 Score: {test_f1_score:.4f}')
