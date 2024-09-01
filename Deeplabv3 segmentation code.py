@@ -1,6 +1,7 @@
-
+# Import necessary libraries
 import torch
 import torch.nn as nn
+import torchmetrics.functional as tmf
 from torch.utils.data import Dataset, DataLoader, Subset
 import torchvision
 from torchvision.transforms import ToTensor, ToPILImage, Resize, CenterCrop, ConvertImageDtype, Normalize
@@ -35,11 +36,11 @@ wsi_class = ["IPMN", "NOT_IPMN"]
 wsi_color = [(255,255,255), (0,0,0)]
 
 # WSI (If you choose 3-class segmentation)
-wsi_class = ["IPMN", "NOT_IPMN", "Other"]
-wsi_color = [(255,255,255), (128,128,128), (0,0,0)]
+#wsi_class = ["IPMN", "NOT_IPMN", "Other"]
+#wsi_color = [(255,255,255), (128,128,128), (0,0,0)]
 
 
-# DATA ROOT (Select data for 2 or 3 classes)
+# DATA ROOT : Set your own directory (2 or 3 class dataset)
 filepaths = {
     'wsi': 'D:/Internship_wemmert/WSI_9', 
 
@@ -87,7 +88,7 @@ image_ext = image_exts[dataset_choice]
 mask_ext = mask_exts[dataset_choice]
 
 
-# ******** IMPORTANT HELPER FUNCTIONS FOR THIS LAB ****************
+# ******** IMPORTANT HELPER FUNCTIONS ****************
 
 # Show the contents of your dataset folder
 # It is important to see how your dataset is organized.
@@ -342,7 +343,7 @@ display_image(images=[image_1, recovered_rgb_msk],
 
 
 
-# Model
+# Define Deeplav3 model
 
 seg_model = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True, progress=True, num_classes=21, aux_loss=None)
 
@@ -350,6 +351,7 @@ seg_model = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True, 
 # Let's see the architecture of the model
 # we look at only the classifier module
 print(seg_model.classifier)
+
 
 # Modify the last layer to have output channel matching your dataset classes (2 or 3 classes)
 classes = list(range(2)) # select 2 or 3
@@ -414,6 +416,7 @@ display_image(images=[image_1, gt_rgb_msk, pd_rgb_msk],
 
 
 
+#Train the model for one epoch
 def train_model(model, train_loader, criterion, optimizer, device):
     model.train()
     running_loss = 0.0
@@ -436,20 +439,22 @@ def train_model(model, train_loader, criterion, optimizer, device):
 
 
 
+#Calculate Intersection over Union (IoU) between predicted masks and target masks.
 def calculate_iou(pred_masks, target_masks):
     intersection = torch.logical_and(pred_masks, target_masks).sum()
     union = torch.logical_or(pred_masks, target_masks).sum()
     iou = (intersection.float() / union.float()).item()
     return iou
 
+#Calculate the accuracy of the predicted masks.
 def calculate_accuracy(pred_masks, target_masks):
     correct = (pred_masks == target_masks).sum().item()
     total_pixels = target_masks.numel()
     accuracy = correct / total_pixels
     return accuracy
 
-import torchmetrics.functional as tmf
 
+#Calculate the F1 score between predicted masks and target masks.
 def calculate_f1_score(pred_masks, target_masks):
     TP = ((pred_masks == 1) & (target_masks == 1)).sum().item()
     FP = ((pred_masks == 1) & (target_masks == 0)).sum().item()
@@ -462,6 +467,7 @@ def calculate_f1_score(pred_masks, target_masks):
 
     return f1_score
 
+#Evaluate the model on the validation dataset.
 def evaluate_model(model, val_loader, criterion, device):
     model.eval()
     running_loss = 0.0
@@ -494,7 +500,7 @@ def evaluate_model(model, val_loader, criterion, device):
     avg_f1_score = total_f1_score / num_batches  # Calculer le score F1 moyen
     return epoch_loss, avg_iou, avg_accuracy, avg_f1_score  # Retourner également le score F1 dans les valeurs de retour
 
-# Utilisation dans la boucle d'évaluation
+# Train and evaluate the model over multiple epochs.
 def train_loop(model, train_loader, val_loader, criterion, optimizer, device, num_epochs=20):
     train_losses = []
     val_losses = []
@@ -531,12 +537,10 @@ optimizer = torch.optim.Adam(seg_model.parameters(), lr=1e-6)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 seg_model = seg_model.to(device)
 
-# Train the model
-
+# Train the model (if you load an already trained model, do not run this code).
 #num_epochs = 300
 #seg_model.eval()
 #train_losses, val_losses, val_iou, val_accuracy, val_f1_score = train_loop(seg_model, train_dataloader, val_dataloader, criterion, optimizer, device, num_epochs=num_epochs)
-
 
 # Plot training and validation metrics
 #plt.figure(figsize=(16, 5))  # Ajustement de la taille de la figure pour inclure la sous-figure supplémentaire
@@ -574,13 +578,13 @@ seg_model = seg_model.to(device)
 
 
 
-#charger le modèle
-
-seg_model.load_state_dict(torch.load('D:/Internship_wemmert/models/segmentation_deeplabv3_2cl_1507.pth', map_location=torch.device('cpu')))
 
 
+# Load the trained model (Replace with your own directory).
+seg_model.load_state_dict(torch.load('D:/Internship_wemmert/models/segmentation_deeplabv3_2cl.pth', map_location=torch.device('cpu')))
 
-# Évaluation sur le jeu de test
+
+# Evaluation on the test set
 test_loss, test_iou, test_accuracy, test_f1_score = evaluate_model(seg_model, test_dataloader, criterion, device)
 
 print(f'Test Loss: {test_loss:.4f}, Test IoU: {test_iou:.4f}, Test Accuracy: {test_accuracy:.4f}, Test F1 Score: {test_f1_score:.4f}')
