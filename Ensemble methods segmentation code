@@ -1,0 +1,581 @@
+# Import necessary libraries
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader, Subset
+import torchvision
+import segmentation_models_pytorch as smp
+from torchvision.transforms import ToTensor, ToPILImage, Resize, CenterCrop, ConvertImageDtype, Normalize
+from torchmetrics import JaccardIndex
+import torchmetrics.functional as tmf
+import segmentation_models_pytorch as smp
+import torchvision.models as models
+import matplotlib.pyplot as plt
+import importlib as ipl
+import numpy as np
+import random
+import pickle
+import os
+import glob
+import time
+import urllib
+from timeit import default_timer as timer
+import gc
+from zipfile import ZipFile
+from PIL import Image, ImageColor
+
+
+
+# check the PyTorch version;
+print("PyTorch version: ", torch.__version__)
+print("torchvision version: ", torchvision.__version__)
+
+# check the GPU support; shold be yes
+print("Is GPU available?: ", torch.cuda.is_available())
+
+
+dataset_choice = "wsi"
+
+# WSI
+wsi_class = ["IPMN", "NOT_IPMN"]
+wsi_color = [(255,255,255), (0,0,0)]
+
+# WSI (If you choose 3-class segmentation)
+#wsi_class = ["IPMN", "NOT_IPMN", "Other"]
+#wsi_color = [(255,255,255), (128,128,128), (0,0,0)]
+
+
+
+# DATA ROOT : Set your own directory (2 or 3 class dataset)
+filepaths = {
+    'wsi': 'D:/Internship_wemmert/WSI_9',
+
+}
+
+# COMBINE
+color_maps = {
+    "wsi": wsi_color,
+
+
+}
+
+class_maps = {
+    "wsi": wsi_class,
+
+}
+
+image_dirs = {
+    "wsi": "images",
+
+}
+
+mask_dirs = {
+    "wsi": "masks",
+
+}
+
+image_exts = {
+    "wsi": ".png",
+
+}
+
+
+mask_exts = {
+    "wsi": ".png",
+
+}
+
+filepath = filepaths[dataset_choice]
+color_mapping = color_maps[dataset_choice]
+classes = class_maps[dataset_choice]
+image_dir = image_dirs[dataset_choice]
+mask_dir = mask_dirs[dataset_choice]
+image_ext = image_exts[dataset_choice]
+mask_ext = mask_exts[dataset_choice]
+
+
+# ******** IMPORTANT HELPER FUNCTIONS ****************
+
+# Show the contents of your dataset folder
+# It is important to see how your dataset is organized.
+# You can also do this using file explorer
+
+def show_folder_structure(startpath):
+    assert os.path.exists(startpath), "File path does not exist!"
+    for root, dirs, files in os.walk(startpath):
+        level = root.replace(startpath, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        print('{}{}/'.format(indent, os.path.basename(root)))
+        subindent = ' ' * 4 * (level + 1)
+        for j,f in enumerate(sorted(files[:3])):
+            print('{}{}'.format(subindent, f))
+            if j==2:
+              print(subindent,'...')
+              print('{}{}'.format(subindent, files[-1]))
+
+
+# Display images and labels
+def display_image(images, titles):
+    f, axes = plt.subplots(1, len(images), sharey=True)
+    for i in range(len(images)):
+        axes[i].imshow(images[i])
+        axes[i].set_title(titles[i], fontsize=8, color= 'blue')
+    plt.show()
+
+
+# Convert segmentation mask from RGB to Semantic channel.
+# RGB channel = 3 (red, green, blue)
+# Semantic channel = N, where N = number of classes, one channel per class
+
+def rgb_to_semantic(image, color_mapping):
+    image_array = np.array(image)
+    repeated_image = np.repeat(image_array[:, :, np.newaxis, :], len(color_mapping), axis=2) # [rgb channels] x number of classes
+    repeated_mapping = np.repeat(np.array(list(color_mapping))[np.newaxis, np.newaxis, :, :], image_array.shape[0], axis=0) # [semantic channels] x number of classes
+    maskND = np.all(repeated_image == repeated_mapping, axis=-1).astype(np.uint8) # Equality broadcast
+    return maskND
+
+
+# Convert segmentation mask with semantic channel to a single channel
+# Use NumPy broadcasting to assign the keys to the matching pixels
+# Each pixel takes the class categorical value
+def nD_to_1D(maskND):
+    mask1D = np.argmax(maskND, axis=-1)
+    return mask1D
+
+
+# Convert semantic channel mask to rgb channel image
+# Create an array of RGB values corresponding to keys in the mapping
+# And Map the keys in the image to their corresponding RGB values
+def semantic_to_rgb(mapped_image, color_mapping):
+    color_array = np.array(color_mapping, dtype=np.uint8)
+    rgb_image = color_array[mapped_image]
+    return rgb_image
+
+
+
+# folder structure exploration
+
+show_folder_structure(filepath)
+
+
+# check data size
+
+train_size = len(os.listdir(os.path.join(filepath, "train", image_dir)))
+val_size = len(os.listdir(os.path.join(filepath, "val", image_dir)))
+test_size = len(os.listdir(os.path.join(filepath, "test", image_dir)))
+
+print("Size | train: {}, val: {}, test:{}".format(train_size, val_size, test_size))
+
+# show one image and label to see what they are like, in actual sense, you need to check many examples.
+
+selected_img_file = '19AG01438-23_0735.png'
+selected_msk_file = '19AG01438-23_0735.png'
+
+#selected_img_file = os.listdir(os.path.join(filepath, "train", image_dir))[1000]
+#selected_msk_file = os.listdir(os.path.join(filepath, "train", mask_dir))[1000]
+
+img1_url = os.path.join(filepath, "train", image_dir, selected_img_file)
+msk1_url = os.path.join(filepath, "train", mask_dir, selected_msk_file)
+rgb_img1 = Image.open(img1_url).convert("RGB")
+rgb_msk1 = Image.open(msk1_url).convert("RGB")
+rgb_img1 = np.array(rgb_img1)
+rgb_msk1 = np.array(rgb_msk1)
+
+
+display_image(images=[rgb_img1, rgb_msk1], titles=['image', 'mask'])
+
+
+# Check your data shape and distribution
+# This is very important to understand your data
+
+print("Image shape = ", rgb_img1.shape)
+print("Mask shape = ", rgb_msk1.shape)
+
+print("Image distribution: [Min = {}, Mean = {}, Max = {}] ".format(rgb_img1.min(), rgb_img1.mean(), rgb_img1.max()))
+print("Mask distribution: [Min = {}, Mean = {}, Max = {}] ".format(rgb_msk1.min(), rgb_msk1.mean(), rgb_msk1.max()))
+
+
+# Data Label Processing
+# You are to process your label to have it in a format that your model can use.
+# You have seen the shape and it has RGB channel but your mode will need a semantic channel
+# Semantic label means N channel where N = number of classes
+
+# 1. Convert RGB channel to semantic channel mask.
+
+semantic_mask_ND = rgb_to_semantic(rgb_msk1, color_mapping)
+
+# 2. Convert semantic mask to single channel mask
+# We can now visualize the converted semantic channel mask,
+# So we convert it to single channel with each pixel having the channel index with maximum value
+semantic_mask_1D = nD_to_1D(semantic_mask_ND)
+
+# 3. Recover rgb mask
+# We can convert the single channel easily to the RGB channel to visual the mask.
+# If you didn't get back your original RGB mask, it means your label processing code is not correct.
+recovered_rgb_msk1 = semantic_to_rgb(semantic_mask_1D, color_mapping)
+
+# 4. Visualize
+display_image(images=[rgb_img1, rgb_msk1, semantic_mask_1D, recovered_rgb_msk1],
+              titles=['Image', 'RGB mask', "Semantic mask", "Reversed RGB mask"])
+
+
+# NB: We will only need the semantic channel mask for model training, the rest is for visualization purpose.
+
+# We define a dataset class that delivers images and correponding ground truth segmentation masks
+
+class MyDataset(torch.utils.data.Dataset):
+    # Dataset class will inherit torch.utils.data.Dataset
+    # There are 3 most important function to overider here
+    # 1. `init` function: This prepare your dataset like a stack of data that are indexable
+    # 2. `len` function: This return the total number of data you have
+    # 3. `getitem` function: This return individual (image, target) on each call
+    # You can write other functions that can help these 3 fulfill their duties
+    def __init__(self, root_dir="/muis", data_split="train", image_dir="images", mask_dir="masks",
+                 image_ext=".png", mask_ext=".png", image_transforms=ToTensor(), mask_transforms=ToTensor(),
+                 color_mapping=None):
+        np.random.seed(13)
+        image_paths = os.path.join(root_dir, data_split, image_dir, "*{}".format(image_ext))
+        self.images = sorted(glob.glob(image_paths))
+        self.masks  = [img.replace(image_dir, mask_dir).replace(image_ext, mask_ext) for img in self.images]
+        self.image_transforms = image_transforms               # this and below are used for image pre-proc.
+        self.mask_transforms = mask_transforms
+        self.color_mapping = color_mapping
+
+
+    def __len__(self):
+        return len(self.images)
+
+
+    def __getitem__(self, index):
+        img = Image.open(self.images[index]).convert("RGB")
+        msk = Image.open(self.masks[index]).convert("RGB")
+        img = self.image_transforms(img)
+        msk = self.mask_transforms(msk)
+        msk = self.rgb_to_semantic_mask(msk)
+        return img, msk
+
+
+    def rgb_to_semantic_mask(self, mask):             
+        mask  = (mask * 255.0).long()
+        mask_flat = mask.view(3, -1).t()
+        mapper = torch.tensor(list(self.color_mapping))
+        indices = torch.argmax((mask_flat.unsqueeze(1) == mapper.unsqueeze(0)).all(dim=-1).int(), dim=-1)
+        mask1D = indices.view(mask.shape[1], mask.shape[2])
+        maskND = torch.eye(len(self.color_mapping), dtype=torch.float32)[mask1D].permute(2,0,1)
+        return maskND
+
+
+
+# Data Transformation
+# This is where you can write all your data preprocessing and data augmentation function
+# It is always preferable to have different transformation for the training and evaluation sets
+
+mean_imagenet = [0.485, 0.456, 0.406]
+std_imagenet  = [0.485, 0.456, 0.406]
+base_size = 200
+img_size = [224, 224]
+
+
+train_image_transforms = torchvision.transforms.Compose([
+    ToTensor(),
+    # CenterCrop(base_size),
+    Resize(size=(224,224)),
+    Normalize(mean=mean_imagenet, std=std_imagenet),
+])
+
+train_mask_transforms = torchvision.transforms.Compose([
+    ToTensor(),
+    # CenterCrop(base_size),
+    Resize(size=(224,224), interpolation=torchvision.transforms.InterpolationMode.NEAREST_EXACT),
+])
+
+eval_image_transforms = torchvision.transforms.Compose([
+    ToTensor(),
+    Resize(size=(224,224)),
+    Normalize(mean=mean_imagenet, std=std_imagenet),
+])
+
+eval_mask_transforms = torchvision.transforms.Compose([
+    ToTensor(),
+    Resize(size=(224,224), interpolation=torchvision.transforms.InterpolationMode.NEAREST_EXACT),
+])
+
+
+# Test your dataloader # Be sure your data loader works as desired before using it to train your model
+
+BATCH_SIZE = 46
+
+
+# build dataset for different data split
+train_dataset = MyDataset(root_dir=filepath, data_split="train", image_dir=image_dir, mask_dir=mask_dir,
+                          image_ext=image_ext, mask_ext=mask_ext, image_transforms=train_image_transforms,
+                          mask_transforms=train_mask_transforms, color_mapping=color_mapping)
+
+val_dataset = MyDataset(root_dir=filepath, data_split="val", image_dir=image_dir, mask_dir=mask_dir,
+                          image_ext=image_ext, mask_ext=mask_ext, image_transforms=eval_image_transforms,
+                          mask_transforms=eval_mask_transforms, color_mapping=color_mapping)
+
+test_dataset = MyDataset(root_dir=filepath, data_split="test", image_dir=image_dir, mask_dir=mask_dir,
+                          image_ext=image_ext, mask_ext=mask_ext, image_transforms=eval_image_transforms,
+                          mask_transforms=eval_mask_transforms, color_mapping=color_mapping)
+
+
+
+# Build their loader, include a batch size, data shuffling and any other feature.
+train_dataloader = DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle = False)
+val_dataloader = DataLoader(val_dataset, batch_size = BATCH_SIZE, shuffle = True)
+test_dataloader = DataLoader(test_dataset, batch_size = BATCH_SIZE, shuffle = True)
+len(test_dataloader)
+
+# Check one sample
+image_i, mask_i = next(iter(val_dataloader))
+
+
+print("Image shape = {} | Mask shape = {}".format(image_i.shape, mask_i.shape))
+
+# Torch uses the channel-first tensor, we can transpose to channel-last to visualize
+image_1 = image_i[0].permute(1,2,0)
+mask_1 = mask_i[0].permute(1,2,0)
+
+
+# Convert semantic mask to singel channel and final to rgb channel to visualize
+semantic_mask_1D = nD_to_1D(mask_1)
+recovered_rgb_msk = semantic_to_rgb(semantic_mask_1D, color_mapping)
+
+# Plot
+display_image(images=[image_1, recovered_rgb_msk],
+               titles=['Image', 'Target mask'])
+
+
+# Define your criterion (loss function) and optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(seg_model.parameters(), lr=1e-6)
+
+
+
+
+
+
+########## Load the models ##############
+
+#Load Att-Unet model
+seg_model = smp.Unet('resnet50', classes=2, activation=None, encoder_weights='imagenet')
+
+# Load the trained model (Replace with your own directory).
+seg_model.load_state_dict(torch.load('D:/Internship_wemmert/models/segmentation_UNET_2cl.pth', map_location=torch.device('cpu')))
+
+unet_model = seg_model
+
+
+
+
+# Load Deeplav3 model
+
+seg_model = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True, progress=True, num_classes=21, aux_loss=None)
+# Modify the last layer to have output channel matching your dataset classes (2 or 3 classes)
+classes = list(range(2)) # select 2 or 3
+myClassifier = nn.Conv2d(in_channels=256, out_channels=len(classes), kernel_size=1)
+seg_model.classifier[4] = myClassifier
+
+# Load the trained model (Replace with your own directory).
+seg_model.load_state_dict(torch.load('D:/Internship_wemmert/models/segmentation_deeplabv3_2cl.pth', map_location=torch.device('cpu')))
+
+deeplabv3_model = seg_model
+
+
+
+# Load SegResNet model
+
+class SegResNet(nn.Module):
+    def __init__(self, num_classes=21):
+        super(SegResNet, self).__init__()
+        # Charger le modèle ResNet pré-entraîné
+        self.backbone = models.resnet50(pretrained=True)
+
+        # Remplacer la dernière couche fully connected par des couches de segmentation
+        self.classifier = nn.Sequential(
+            nn.Conv2d(2048, 1024, kernel_size=3, padding=1),
+            nn.BatchNorm2d(1024),
+            nn.ReLU(),
+            nn.Conv2d(1024, num_classes, kernel_size=1),
+            nn.Upsample(scale_factor=32, mode='bilinear', align_corners=True)
+        )
+
+    def forward(self, x):
+        # Utiliser ResNet comme feature extractor
+        x = self.backbone.conv1(x)
+        x = self.backbone.bn1(x)
+        x = self.backbone.relu(x)
+        x = self.backbone.maxpool(x)
+
+        x = self.backbone.layer1(x)
+        x = self.backbone.layer2(x)
+        x = self.backbone.layer3(x)
+        x = self.backbone.layer4(x)
+
+        # Appliquer le classifieur de segmentation
+        x = self.classifier(x)
+
+        return x
+
+# Initialize the model
+seg_model = SegResNet(num_classes=2)
+
+# Send the model to the device
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+seg_model = seg_model.to(device)
+
+# Load the trained model (Replace with your own directory).
+seg_model.load_state_dict(torch.load('D:/Internship_wemmert/models/segmentation_SegResNet_2cl.pth', map_location=torch.device('cpu')))
+
+segresnet_model = seg_model
+
+##########################################
+
+
+
+
+
+# Ensemble prediction function with softmax
+def ensemble_predictions(deeplab_output, unet_output, segresnet_output):
+    # Calculer les probabilités avec softmax
+    deeplab_prob = torch.softmax(deeplab_output, dim=1)
+    unet_prob = torch.softmax(unet_output, dim=1)
+    segresnet_prob = torch.softmax(segresnet_output, dim=1)
+    
+    # Moyenne des probabilités
+    avg_prob = (deeplab_prob + unet_prob + segresnet_prob) / 3.0
+    
+    # Prendre l'argmax pour obtenir les prédictions finales
+    ensemble_pred = avg_prob.argmax(dim=1)
+    
+    return ensemble_pred
+
+# Ensemble evaluation function with softmax
+def evaluate_ensemble(deeplabv3_model, unet_model, segresnet_model, val_loader, criterion, device):
+    deeplabv3_model.eval()
+    unet_model.eval()
+    segresnet_model.eval()
+    
+    total_loss = 0.0
+    total_iou = 0.0
+    total_accuracy = 0.0
+    total_f1_score = 0.0
+    num_batches = len(val_loader)
+    
+    with torch.no_grad():
+        for images, masks in val_loader:
+            images, masks = images.to(device), masks.to(device)
+            
+            # Predictions from the three models
+            deeplab_outputs = deeplabv3_model(images)['out']
+            unet_outputs = unet_model(images)
+            segresnet_outputs = segresnet_model(images)
+            
+            # Ensemble prediction with softmax
+            ensemble_pred = ensemble_predictions(deeplab_outputs, unet_outputs, segresnet_outputs)
+            
+            # Calculate the average loss of the three models
+            loss = (criterion(deeplab_outputs, masks) + criterion(unet_outputs, masks) + criterion(segresnet_outputs, masks)) / 3
+            total_loss += loss.item() * images.size(0)
+            
+            # Calculate metrics on the ensemble predictions
+            iou = calculate_iou(ensemble_pred, masks.argmax(1))
+            total_iou += iou
+            
+            accuracy = calculate_accuracy(ensemble_pred, masks.argmax(1))
+            total_accuracy += accuracy
+            
+            f1_score = calculate_f1_score(ensemble_pred, masks.argmax(1))
+            total_f1_score += f1_score
+    
+    avg_loss = total_loss / len(val_loader.dataset)
+    avg_iou = total_iou / num_batches
+    avg_accuracy = total_accuracy / num_batches
+    avg_f1_score = total_f1_score / num_batches
+    
+    return avg_loss, avg_iou, avg_accuracy, avg_f1_score
+
+# Training loop function
+def train_loop(deeplabv3_model, unet_model, segresnet_model, train_loader, val_loader, criterion, optimizer, device, num_epochs=20):
+    train_losses = []
+    val_losses = []
+    val_iou = []
+    val_accuracy = []
+    val_f1_score = []  # Nouvelle liste pour stocker les scores F1
+
+    for epoch in range(num_epochs):
+        start_time = time.time()
+        train_loss = train_model(deeplabv3_model, train_loader, criterion, optimizer, device)  # Entraîner un des modèles
+        val_loss, iou, accuracy, f1_score = evaluate_ensemble(deeplabv3_model, unet_model, segresnet_model, val_loader, criterion, device)
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        val_iou.append(iou)
+        val_accuracy.append(accuracy)
+        val_f1_score.append(f1_score)  # Ajouter le score F1 à la liste
+
+        print(f'Epoch {epoch+1}/{num_epochs}, '
+              f'Train Loss: {train_loss:.4f}, '
+              f'Val Loss: {val_loss:.4f}, '
+              f'Val IoU: {iou:.4f}, '
+              f'Val Accuracy: {accuracy:.4f}, '
+              f'Val F1 Score: {f1_score:.4f}, '  # Afficher le score F1
+              f'Time: {time.time() - start_time:.2f}s')
+
+    return train_losses, val_losses, val_iou, val_accuracy, val_f1_score  # Retourner également le score F1 dans les valeurs de retour
+
+# Use the evaluate_ensemble function to assess the performance of the ensemble model
+val_loss, val_iou, val_accuracy, val_f1_score = evaluate_ensemble(deeplabv3_model, unet_model, segresnet_model, test_dataloader, criterion, device)
+print(f'Validation Loss: {val_loss:.4f}, IoU: {val_iou:.4f}, Accuracy: {val_accuracy:.4f}, F1 Score: {val_f1_score:.4f}')
+
+
+
+
+
+# Visualize the images and prediction
+def visualize_preds(deeplabv3_model, unet_model, segresnet_model, dataloader, choice, device, color_mapping):
+    iterloader = iter(dataloader)
+    if choice >= len(dataloader):
+        choice = 0
+    for _ in range(choice-1):
+        next(iterloader)
+    
+    deeplabv3_model.eval()
+    unet_model.eval()
+    segresnet_model.eval()
+    
+    with torch.no_grad():
+        inputs, labels = next(iterloader)
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+        
+        # Prédictions des trois modèles
+        deeplab_outputs = deeplabv3_model(inputs)['out']
+        unet_outputs = unet_model(inputs)
+        segresnet_outputs = segresnet_model(inputs)
+        
+        # Prédiction par ensemble avec vote majoritaire
+        preds = ensemble_predictions(deeplab_outputs, unet_outputs, segresnet_outputs)
+        
+        targets = labels.argmax(1)
+    
+    for img, pred, target in zip(inputs, preds, targets):
+        img = img.permute(1, 2, 0).cpu()
+        target = target.cpu()
+        pred = pred.cpu()
+        print(np.unique(pred))
+        gt_rgb_msk = semantic_to_rgb(target, color_mapping)
+        pd_rgb_msk = semantic_to_rgb(pred, color_mapping)
+        display_image(images=[img, gt_rgb_msk, pd_rgb_msk],
+                      titles=['Image', 'Target mask', "Predicted mask"])
+    return None
+
+# Visualize the images and predictions, manually find the images that your model failed on.
+iterloader = iter(test_dataloader)
+N = len(test_dataloader)
+choice = random.choice(list(range(N)))
+print("Choosing batch {} out of {} batches".format(choice, N))
+
+visualize_preds(deeplabv3_model, unet_model, segresnet_model, test_dataloader, choice, device, color_mapping)
+
+
+
