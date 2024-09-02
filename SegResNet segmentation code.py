@@ -500,7 +500,7 @@ def evaluate_model(model, val_loader, criterion, device):
     running_loss = 0.0
     total_iou = 0.0
     total_accuracy = 0.0
-    total_f1_score = 0.0  # Nouvelle variable pour stocker le score F1
+    total_f1_score = 0.0  
     num_batches = len(val_loader)
 
     with torch.no_grad():
@@ -518,14 +518,14 @@ def evaluate_model(model, val_loader, criterion, device):
             accuracy = calculate_accuracy(pred_masks, masks.argmax(1))
             total_accuracy += accuracy
 
-            f1_score = calculate_f1_score(pred_masks, masks.argmax(1))  # Calculer le score F1
+            f1_score = calculate_f1_score(pred_masks, masks.argmax(1))  
             total_f1_score += f1_score
 
     epoch_loss = running_loss / len(val_loader.dataset)
     avg_iou = total_iou / num_batches
     avg_accuracy = total_accuracy / num_batches
-    avg_f1_score = total_f1_score / num_batches  # Calculer le score F1 moyen
-    return epoch_loss, avg_iou, avg_accuracy, avg_f1_score  # Retourner également le score F1 dans les valeurs de retour
+    avg_f1_score = total_f1_score / num_batches  
+    return epoch_loss, avg_iou, avg_accuracy, avg_f1_score  
 
 # Train and evaluate the model over multiple epochs.
 def train_loop(model, train_loader, val_loader, criterion, optimizer, device, num_epochs=20):
@@ -533,7 +533,7 @@ def train_loop(model, train_loader, val_loader, criterion, optimizer, device, nu
     val_losses = []
     val_iou = []
     val_accuracy = []
-    val_f1_score = []  # Nouvelle liste pour stocker les scores F1
+    val_f1_score = []  
 
     for epoch in range(num_epochs):
         start_time = time.time()
