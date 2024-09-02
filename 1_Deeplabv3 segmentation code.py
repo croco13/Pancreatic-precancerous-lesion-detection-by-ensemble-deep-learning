@@ -296,7 +296,7 @@ eval_mask_transforms = torchvision.transforms.Compose([
 
 # Test your dataloader # Be sure your data loader works as desired before using it to train your model
 
-BATCH_SIZE = 48
+BATCH_SIZE = 46
 
 
 # build dataset for different data split
