@@ -355,7 +355,7 @@ optimizer = torch.optim.Adam(seg_model.parameters(), lr=1e-6)
 
 
 
-########## Load the models ##############
+########## Load the 3 models ##############
 
 #Load Att-Unet model
 seg_model = smp.Unet('resnet50', classes=2, activation=None, encoder_weights='imagenet')
@@ -450,6 +450,37 @@ def ensemble_predictions(deeplab_output, unet_output, segresnet_output):
     
     return ensemble_pred
 
+
+#Calculate Intersection over Union (IoU) between predicted masks and target masks.
+def calculate_iou(pred_masks, target_masks):
+    intersection = torch.logical_and(pred_masks, target_masks).sum()
+    union = torch.logical_or(pred_masks, target_masks).sum()
+    iou = (intersection.float() / union.float()).item()
+    return iou
+
+#Calculate the accuracy of the predicted masks.
+def calculate_accuracy(pred_masks, target_masks):
+    correct = (pred_masks == target_masks).sum().item()
+    total_pixels = target_masks.numel()
+    accuracy = correct / total_pixels
+    return accuracy
+
+
+#Calculate the F1 score between predicted masks and target masks.
+def calculate_f1_score(pred_masks, target_masks):
+    TP = ((pred_masks == 1) & (target_masks == 1)).sum().item()
+    FP = ((pred_masks == 1) & (target_masks == 0)).sum().item()
+    FN = ((pred_masks == 0) & (target_masks == 1)).sum().item()
+
+    precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+    recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+    return f1_score
+
+
+
 # Ensemble evaluation function with softmax
 def evaluate_ensemble(deeplabv3_model, unet_model, segresnet_model, val_loader, criterion, device):
     deeplabv3_model.eval()
@@ -501,27 +532,28 @@ def train_loop(deeplabv3_model, unet_model, segresnet_model, train_loader, val_l
     val_losses = []
     val_iou = []
     val_accuracy = []
-    val_f1_score = []  # Nouvelle liste pour stocker les scores F1
+    val_f1_score = []  
 
     for epoch in range(num_epochs):
         start_time = time.time()
-        train_loss = train_model(deeplabv3_model, train_loader, criterion, optimizer, device)  # Entraîner un des modèles
+        train_loss = train_model(deeplabv3_model, train_loader, criterion, optimizer, device)  
         val_loss, iou, accuracy, f1_score = evaluate_ensemble(deeplabv3_model, unet_model, segresnet_model, val_loader, criterion, device)
         train_losses.append(train_loss)
         val_losses.append(val_loss)
         val_iou.append(iou)
         val_accuracy.append(accuracy)
-        val_f1_score.append(f1_score)  # Ajouter le score F1 à la liste
+        val_f1_score.append(f1_score)  
 
         print(f'Epoch {epoch+1}/{num_epochs}, '
               f'Train Loss: {train_loss:.4f}, '
               f'Val Loss: {val_loss:.4f}, '
               f'Val IoU: {iou:.4f}, '
               f'Val Accuracy: {accuracy:.4f}, '
-              f'Val F1 Score: {f1_score:.4f}, '  # Afficher le score F1
+              f'Val F1 Score: {f1_score:.4f}, ' 
               f'Time: {time.time() - start_time:.2f}s')
 
-    return train_losses, val_losses, val_iou, val_accuracy, val_f1_score  # Retourner également le score F1 dans les valeurs de retour
+    return train_losses, val_losses, val_iou, val_accuracy, val_f1_score  
+
 
 # Use the evaluate_ensemble function to assess the performance of the ensemble model
 val_loss, val_iou, val_accuracy, val_f1_score = evaluate_ensemble(deeplabv3_model, unet_model, segresnet_model, test_dataloader, criterion, device)
