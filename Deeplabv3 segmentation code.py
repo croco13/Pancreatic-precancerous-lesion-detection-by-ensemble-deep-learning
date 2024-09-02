@@ -472,7 +472,7 @@ def evaluate_model(model, val_loader, criterion, device):
     running_loss = 0.0
     total_iou = 0.0
     total_accuracy = 0.0
-    total_f1_score = 0.0  # Nouvelle variable pour stocker le score F1
+    total_f1_score = 0.0  
     num_batches = len(val_loader)
 
     with torch.no_grad():
@@ -490,7 +490,7 @@ def evaluate_model(model, val_loader, criterion, device):
             accuracy = calculate_accuracy(pred_masks, masks.argmax(1))
             total_accuracy += accuracy
 
-            f1_score = calculate_f1_score(pred_masks, masks.argmax(1))  # Calculer le score F1
+            f1_score = calculate_f1_score(pred_masks, masks.argmax(1)) 
             total_f1_score += f1_score
 
     epoch_loss = running_loss / len(val_loader.dataset)
