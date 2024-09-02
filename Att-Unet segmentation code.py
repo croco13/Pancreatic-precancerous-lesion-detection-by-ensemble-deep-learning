@@ -491,8 +491,8 @@ def evaluate_model(model, val_loader, criterion, device):
     epoch_loss = running_loss / len(val_loader.dataset)
     avg_iou = total_iou / num_batches
     avg_accuracy = total_accuracy / num_batches
-    avg_f1_score = total_f1_score / num_batches  # Calculer le score F1 moyen
-    return epoch_loss, avg_iou, avg_accuracy, avg_f1_score  # Retourner également le score F1 dans les valeurs de retour
+    avg_f1_score = total_f1_score / num_batches  
+    return epoch_loss, avg_iou, avg_accuracy, avg_f1_score  
 
 # Train and evaluate the model over multiple epochs.
 def train_loop(model, train_loader, val_loader, criterion, optimizer, device, num_epochs=20):
